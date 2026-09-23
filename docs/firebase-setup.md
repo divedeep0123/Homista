@@ -1,14 +1,12 @@
 # Firebase setup for Homista
 
-Homista does not have a Firebase project configured yet. The app's phone sign-in is implemented, but Firebase will not send SMS codes until these project steps are complete.
+Homista uses the Firebase project `home-1-3119d` (display name **Home-1**). The web, Android (`com.homista.app`), and iOS (`com.homista.app`) clients are registered, and Phone sign-in is enabled. The console currently reports a limit of 10 sent SMS messages per day. Firebase's current pricing says those first 10 SMS are not billed; additional India SMS are listed at $0.07 each. Real SMS sign-in requires a billing account, while configured test phone numbers do not send SMS. See [Firebase phone-auth pricing](https://cloud.google.com/identity-platform/pricing) and the [billing requirement](https://firebase.google.com/docs/auth/faq-and-troubleshooting#what_happened_to_the_no-cost_sms_on_the_spark_pricing_plan). The web and native app configs are stored in ignored local files.
 
-## Create and configure the project
+## Development setup
 
-1. Create a Firebase project in the [Firebase console](https://console.firebase.google.com/).
-2. In **Authentication → Sign-in method**, enable **Phone**. For development, add a Firebase test phone number and fixed test code so you can verify the flow without sending real SMS messages.
-3. Register an Android app with package `com.homista.app` and an iOS app with bundle ID `com.homista.app`. Download their Firebase app configuration files into `mobile/google-services.json` and `mobile/GoogleService-Info.plist`. These files are ignored by Git.
-4. Register a Web app in the same Firebase project. Copy its web configuration into `mobile/.env`, based on `mobile/.env.example`. The project ID must match the backend's Firebase project ID.
-5. In `backend/.env`, set `FIREBASE_PROJECT_ID` to that same project ID, set `GOOGLE_APPLICATION_CREDENTIALS` to the local path of a Firebase Admin service-account file, and set `JWT_SECRET` to a unique random value of at least 32 bytes. Keep the service-account file outside the repository; in a deployed environment use workload identity or Application Default Credentials.
+1. For development, add a Firebase test phone number and fixed test code so you can verify the flow without sending real SMS messages.
+2. The Android and iOS configuration files are in `mobile/google-services.json` and `mobile/GoogleService-Info.plist`; both paths are ignored by Git. The registered Android app may also need the development signing certificate's SHA-1 fingerprint for phone verification.
+3. In `backend/.env`, `FIREBASE_PROJECT_ID` and a unique `JWT_SECRET` of at least 32 bytes are set locally. Backend Firebase token verification still needs Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS` pointing to a local Firebase Admin service-account file. Keep private credentials outside the repository; in a deployed environment use workload identity or Application Default Credentials.
 
 ## Build and run the native app
 
