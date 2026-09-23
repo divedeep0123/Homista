@@ -11,10 +11,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.homista.app"
+      "bundleIdentifier": "com.homista.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.homista.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#f7f8f5"
       }
