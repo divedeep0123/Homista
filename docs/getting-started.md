@@ -4,7 +4,7 @@
 
 - Node.js 20 or newer and npm.
 - Python 3.12.
-- Expo Go for a physical device, or an iOS/Android simulator.
+- Xcode for iOS builds and Android Studio for Android builds.
 
 ## Run the API
 
@@ -25,7 +25,7 @@ For local Firebase verification, set `FIREBASE_PROJECT_ID` and point `GOOGLE_APP
 
 ## Run the app
 
-From `mobile/`, install dependencies and run `npm start`. Follow Expo's prompts to open a simulator or scan the QR code in Expo Go. To start the browser build use `npm run web`.
+The app's phone sign-in uses native Firebase modules and needs an Expo development build; it does not run in Expo Go. Follow [Firebase setup](firebase-setup.md), then from `mobile/` run `npm ci` and either `npx expo run:ios` or `npx expo run:android`. For a browser preview, use `npm run web` after configuring the Firebase web app values.
 
 ## Run checks
 

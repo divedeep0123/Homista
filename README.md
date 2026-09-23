@@ -28,11 +28,11 @@ The API is available at `http://127.0.0.1:8000`; interactive API docs are at `/d
 
 ```bash
 cd mobile
-npm install
-npm run start
+npm ci
+npx expo run:ios
 ```
 
-Use Expo Go to scan the terminal QR code. `npm run web` starts the browser version used by the Playwright smoke check.
+Phone sign-in uses native Firebase modules, so use a development build rather than Expo Go. Configure the Firebase project and native app files first; see [Firebase setup](docs/firebase-setup.md). For the browser preview, run `npm run web`.
 
 See [Getting started](docs/getting-started.md) and [Architecture](docs/architecture.md) for details.
 

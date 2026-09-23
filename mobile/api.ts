@@ -1,0 +1,45 @@
+export type HomistaUser = {
+  id: number;
+  phone_number: string | null;
+  display_name: string | null;
+};
+
+type LoginResponse = {
+  access_token: string;
+  expires_in: number;
+  user: HomistaUser;
+};
+
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+async function request<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.detail || `Request failed (${response.status}).`);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+export function createHomistaSession(firebaseIdToken: string): Promise<LoginResponse> {
+  return request('/v1/auth/firebase', undefined, {
+    method: 'POST',
+    body: JSON.stringify({ id_token: firebaseIdToken }),
+  });
+}
+
+export function getCurrentUser(token: string): Promise<HomistaUser> {
+  return request('/v1/users/me', token);
+}
+
+export function revokeHomistaSession(token: string): Promise<void> {
+  return request('/v1/auth/logout', token, { method: 'POST' });
+}

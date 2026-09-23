@@ -1,6 +1,8 @@
 .DS_Store
 .env
 *.db
+mobile/google-services.json
+mobile/GoogleService-Info.plist
 .venv/
 __pycache__/
 .pytest_cache/
