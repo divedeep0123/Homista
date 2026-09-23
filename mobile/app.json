@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Homista",
+    "slug": "homista",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#f7f8f5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.homista.app"
+    },
+    "android": {
+      "package": "com.homista.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#f7f8f5"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
