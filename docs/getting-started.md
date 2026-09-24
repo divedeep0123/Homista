@@ -25,7 +25,7 @@ For local Firebase verification, set `FIREBASE_PROJECT_ID` and point `GOOGLE_APP
 
 ## Run the app
 
-The app's phone sign-in uses native Firebase modules and needs an Expo development build; it does not run in Expo Go. Follow [Firebase setup](firebase-setup.md), then from `mobile/` run `npm ci` and either `npx expo run:ios` or `npx expo run:android`. For a browser preview, use `npm run web` after configuring the Firebase web app values.
+The app's phone sign-in uses native Firebase modules and needs an Expo development build; it does not run in Expo Go. Follow [Firebase setup](firebase-setup.md), then from `mobile/` run `npm ci` and either `npx expo run:ios` or `npx expo run:android`. For a browser preview, use `npm run web` after configuring the Firebase web app values. After signing in, you can create home projects and see the projects owned by your account.
 
 ## Run checks
 
@@ -42,5 +42,7 @@ cd ../qa && npm ci && npx playwright install chromium && npm run test:e2e
 - `POST /v1/auth/firebase` accepts `{ "id_token": "<Firebase ID token>" }` after a client completes Firebase sign-in. The API verifies the token, upserts the user, and returns a 30-minute Homista bearer token.
 - `GET /v1/users/me` returns the authenticated user's profile.
 - `POST /v1/auth/logout` revokes the session in the database; subsequent use of that access token returns `401`.
+- `GET /v1/projects` lists projects owned by the current user.
+- `POST /v1/projects` creates a project with a required name and optional location.
 
-Send Homista tokens in `Authorization: Bearer <access_token>`. Use HTTPS for API traffic outside local development. The mobile screen does not yet implement Firebase phone OTP; the API is ready for that client integration once phone sign-in is configured in the Homista Firebase project.
+Send Homista tokens in `Authorization: Bearer <access_token>`. Use HTTPS for API traffic outside local development. The mobile app completes Firebase phone OTP, creates a Homista session, then uses that session for project API requests.

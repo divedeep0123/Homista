@@ -11,11 +11,19 @@ import {
   View,
 } from 'react-native';
 
-import { createHomistaSession, getCurrentUser, HomistaUser, revokeHomistaSession } from './api';
+import {
+  createHomistaSession,
+  createProject,
+  getCurrentUser,
+  getProjects,
+  HomeProject,
+  HomistaUser,
+  revokeHomistaSession,
+} from './api';
 import { confirmPhoneCode, sendPhoneCode, signOutFromFirebase } from './auth-provider';
 import { clearSessionToken, readSessionToken, writeSessionToken } from './session-store';
 
-type Screen = 'welcome' | 'phone' | 'code' | 'signed-in';
+type Screen = 'welcome' | 'phone' | 'code' | 'projects' | 'new-project';
 
 const colors = {
   background: '#f7f8f5',
@@ -39,6 +47,9 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('welcome');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [projectLocation, setProjectLocation] = useState('');
+  const [projects, setProjects] = useState<HomeProject[]>([]);
   const [user, setUser] = useState<HomistaUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,10 +62,17 @@ export default function App() {
         if (!token) return;
         try {
           const profile = await getCurrentUser(token);
+          let ownedProjects: HomeProject[] = [];
+          try {
+            ownedProjects = await getProjects(token);
+          } catch {
+            if (mounted) setError('Your projects could not be loaded. Check your connection and try again.');
+          }
           if (mounted) {
             setAccessToken(token);
             setUser(profile);
-            setScreen('signed-in');
+            setProjects(ownedProjects);
+            setScreen('projects');
           }
         } catch {
           await clearSessionToken();
@@ -100,9 +118,56 @@ export default function App() {
       await writeSessionToken(session.access_token);
       setAccessToken(session.access_token);
       setUser(session.user);
-      setScreen('signed-in');
+      try {
+        setProjects(await getProjects(session.access_token));
+      } catch {
+        setError('Your account is ready, but your projects could not be loaded. Check your connection and try again.');
+      }
+      setScreen('projects');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'That code could not be verified. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProject = async () => {
+    setError('');
+    const normalizedName = projectName.trim();
+    if (!normalizedName) {
+      setError('Add a name for your project to continue.');
+      return;
+    }
+    if (!accessToken) {
+      setError('Your session expired. Sign in again to create a project.');
+      setScreen('welcome');
+      return;
+    }
+    setBusy(true);
+    try {
+      const project = await createProject(accessToken, {
+        name: normalizedName,
+        ...(projectLocation.trim() ? { location: projectLocation.trim() } : {}),
+      });
+      setProjects((current) => [project, ...current]);
+      setProjectName('');
+      setProjectLocation('');
+      setScreen('projects');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'We could not create that project. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reloadProjects = async () => {
+    if (!accessToken) return;
+    setBusy(true);
+    setError('');
+    try {
+      setProjects(await getProjects(accessToken));
+    } catch {
+      setError('Your projects could not be loaded. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -120,6 +185,9 @@ export default function App() {
       setUser(null);
       setPhone('');
       setCode('');
+      setProjectName('');
+      setProjectLocation('');
+      setProjects([]);
       setScreen('welcome');
       setBusy(false);
     }
@@ -208,16 +276,82 @@ export default function App() {
           </>
         )}
 
-        {screen === 'signed-in' && (
+        {screen === 'projects' && (
           <>
-            <Text style={styles.eyebrow}>WELCOME TO HOMISTA</Text>
-            <Text style={styles.title}>You’re in.</Text>
-            <Text style={styles.subtitle}>{user?.display_name || user?.phone_number || 'Your Homista account is ready.'}</Text>
+            <Text style={styles.eyebrow}>YOUR HOMISTA WORKSPACE</Text>
+            <Text style={styles.title}>Your home{'\n'}projects.</Text>
+            <Text style={styles.subtitle}>Keep each build’s plans and next steps together.</Text>
+            {error ? (
+              <>
+                <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
+                <Pressable accessibilityRole="button" disabled={busy} onPress={reloadProjects} style={styles.retryButton}>
+                  <Text style={styles.textButtonLabel}>{busy ? 'Loading…' : 'Try again'}</Text>
+                </Pressable>
+              </>
+            ) : null}
+            {projects.length === 0 ? (
+              <View style={styles.card}>
+                <View style={styles.icon}><Text style={styles.iconText}>⌂</Text></View>
+                <Text style={styles.cardTitle}>Start with your first project</Text>
+                <Text style={styles.cardBody}>Add a name and location. You can fill in the rest as your home takes shape.</Text>
+                <ActionButton label="Create a project" onPress={() => { setError(''); setScreen('new-project'); }} />
+              </View>
+            ) : (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Your projects</Text>
+                  <Text style={styles.projectCount}>{projects.length}</Text>
+                </View>
+                {projects.map((project) => (
+                  <View key={project.id} style={styles.projectCard}>
+                    <View style={styles.projectIcon}><Text style={styles.projectIconText}>⌂</Text></View>
+                    <View style={styles.projectCopy}>
+                      <Text style={styles.projectName}>{project.name}</Text>
+                      <Text style={styles.projectLocation}>{project.location || 'Location not added'}</Text>
+                    </View>
+                  </View>
+                ))}
+                <ActionButton label="Create another project" onPress={() => { setError(''); setScreen('new-project'); }} />
+              </>
+            )}
+            <Pressable accessibilityRole="button" disabled={busy} onPress={signOut} style={styles.textButton}>
+              {busy ? <ActivityIndicator color={colors.green} /> : <Text style={styles.textButtonLabel}>Sign out{user?.phone_number ? ` · ${user.phone_number}` : ''}</Text>}
+            </Pressable>
+          </>
+        )}
+
+        {screen === 'new-project' && (
+          <>
+            <Text style={styles.eyebrow}>A FRESH START</Text>
+            <Text style={styles.title}>Create your{'\n'}project.</Text>
+            <Text style={styles.subtitle}>Begin with the basics. You can add plans and details later.</Text>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Your home project starts here</Text>
-              <Text style={styles.cardBody}>Your account is set up. Project planning tools are the next part of your Homista workspace.</Text>
-              <Pressable accessibilityRole="button" disabled={busy} onPress={signOut} style={styles.secondaryButton}>
-                {busy ? <ActivityIndicator color={colors.green} /> : <Text style={styles.secondaryButtonText}>Sign out</Text>}
+              <Text style={styles.label}>PROJECT NAME</Text>
+              <TextInput
+                accessibilityLabel="Project name"
+                autoCapitalize="words"
+                maxLength={120}
+                onChangeText={setProjectName}
+                placeholder="e.g. Family home in Pune"
+                placeholderTextColor="#9aa39c"
+                style={styles.input}
+                value={projectName}
+              />
+              <Text style={[styles.label, styles.locationLabel]}>LOCATION (OPTIONAL)</Text>
+              <TextInput
+                accessibilityLabel="Project location"
+                autoCapitalize="words"
+                maxLength={160}
+                onChangeText={setProjectLocation}
+                placeholder="City or area"
+                placeholderTextColor="#9aa39c"
+                style={styles.input}
+                value={projectLocation}
+              />
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              <ActionButton label="Save project" loading={busy} onPress={saveProject} />
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setError(''); setScreen('projects'); }} style={styles.textButton}>
+                <Text style={styles.textButtonLabel}>Cancel</Text>
               </Pressable>
             </View>
           </>
@@ -262,6 +396,16 @@ const styles = StyleSheet.create({
   iconText: { color: colors.green, fontSize: 30, lineHeight: 34 },
   cardTitle: { color: colors.ink, fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   cardBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 9, marginBottom: 22 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '700' },
+  projectCount: { color: colors.green, fontSize: 13, fontWeight: '700', backgroundColor: colors.paleGreen, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  projectCard: { backgroundColor: colors.white, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#edf0ec' },
+  projectIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.paleGreen, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  projectIconText: { color: colors.green, fontSize: 27, lineHeight: 30 },
+  projectCopy: { flex: 1 },
+  projectName: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  projectLocation: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  locationLabel: { marginTop: 20 },
   label: { color: colors.green, fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 9 },
   input: { height: 54, borderWidth: 1, borderColor: '#dfe5df', borderRadius: 14, paddingHorizontal: 15, color: colors.ink, fontSize: 16, backgroundColor: '#fff' },
   codeInput: { fontSize: 25, letterSpacing: 8, textAlign: 'center' },
@@ -272,6 +416,7 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.white, fontSize: 15, fontWeight: '700' },
   arrow: { color: colors.white, fontSize: 21 },
   textButton: { alignItems: 'center', paddingTop: 18, paddingBottom: 2 },
+  retryButton: { alignItems: 'flex-start', paddingTop: 10, paddingBottom: 16 },
   textButtonLabel: { color: colors.green, fontSize: 14, fontWeight: '600' },
   secondaryButton: { minHeight: 48, borderWidth: 1, borderColor: '#cbd9cd', borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   secondaryButtonText: { color: colors.green, fontWeight: '700', fontSize: 15 },

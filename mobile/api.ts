@@ -4,6 +4,13 @@ export type HomistaUser = {
   display_name: string | null;
 };
 
+export type HomeProject = {
+  id: number;
+  name: string;
+  location: string | null;
+  created_at: string;
+};
+
 type LoginResponse = {
   access_token: string;
   expires_in: number;
@@ -42,4 +49,18 @@ export function getCurrentUser(token: string): Promise<HomistaUser> {
 
 export function revokeHomistaSession(token: string): Promise<void> {
   return request('/v1/auth/logout', token, { method: 'POST' });
+}
+
+export function getProjects(token: string): Promise<HomeProject[]> {
+  return request('/v1/projects', token);
+}
+
+export function createProject(
+  token: string,
+  project: { name: string; location?: string },
+): Promise<HomeProject> {
+  return request('/v1/projects', token, {
+    method: 'POST',
+    body: JSON.stringify(project),
+  });
 }

@@ -27,6 +27,8 @@ def client(monkeypatch: pytest.MonkeyPatch):
             return {"uid": "firebase-user-123", "phone_number": "+919999999999", "name": "Test User"}
         if token == "without-phone":
             return {"uid": "firebase-user-456"}
+        if token == "second-firebase-token":
+            return {"uid": "firebase-user-789", "phone_number": "+919888888888", "name": "Second User"}
         raise ValueError("invalid token")
 
     monkeypatch.setattr("app.routes.verify_firebase_id_token", fake_firebase_verify)
@@ -77,3 +79,42 @@ def test_firebase_identity_without_phone_number_is_rejected(client: TestClient) 
     response = client.post("/v1/auth/firebase", json={"id_token": "without-phone"})
 
     assert response.status_code == 401
+
+
+def test_projects_are_created_and_listed_for_the_authenticated_owner(client: TestClient) -> None:
+    first_token = client.post("/v1/auth/firebase", json={"id_token": "valid-firebase-token"}).json()["access_token"]
+    first_headers = {"Authorization": f"Bearer {first_token}"}
+
+    created = client.post(
+        "/v1/projects",
+        json={"name": "  My first home  ", "location": "  Pune, Maharashtra  "},
+        headers=first_headers,
+    )
+    assert created.status_code == 201
+    project = created.json()
+    assert project["name"] == "My first home"
+    assert project["location"] == "Pune, Maharashtra"
+    assert project["id"]
+
+    listed = client.get("/v1/projects", headers=first_headers)
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [project["id"]]
+
+    second_token = client.post("/v1/auth/firebase", json={"id_token": "second-firebase-token"}).json()["access_token"]
+    second_headers = {"Authorization": f"Bearer {second_token}"}
+    assert client.get("/v1/projects", headers=second_headers).json() == []
+
+
+def test_project_routes_require_an_active_session(client: TestClient) -> None:
+    assert client.get("/v1/projects").status_code == 401
+    assert client.post("/v1/projects", json={"name": "Private home"}).status_code == 401
+
+
+def test_project_name_cannot_be_blank(client: TestClient) -> None:
+    token = client.post("/v1/auth/firebase", json={"id_token": "valid-firebase-token"}).json()["access_token"]
+    response = client.post(
+        "/v1/projects",
+        json={"name": "   "},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422

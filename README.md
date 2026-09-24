@@ -38,4 +38,4 @@ See [Getting started](docs/getting-started.md) and [Architecture](docs/architect
 
 ## Current scope
 
-The API now verifies Firebase ID tokens, creates Homista users and revocable access sessions, and provides a current-user endpoint. The mobile app does not yet include Firebase phone OTP screens. Project workflows remain a future milestone. See [Authentication setup](docs/getting-started.md#authentication-api).
+The app supports Firebase phone OTP sign-in and a user-owned home-project list with project creation. The API verifies Firebase ID tokens, creates revocable Homista sessions, and scopes project data to the signed-in user. Detailed planning, budgets, documents, and team collaboration remain future milestones. See [Authentication and project API](docs/getting-started.md#authentication-api).

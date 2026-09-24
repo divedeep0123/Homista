@@ -11,11 +11,11 @@ FastAPI service ─── PostgreSQL
        └── Firebase Admin verifies phone-auth identity
 ```
 
-The API verifies Firebase ID tokens, maintains Homista user profiles and revocable access sessions, and versions the schema with Alembic. The app currently provides a responsive project-start screen; Firebase phone OTP screens and project workflows remain to be built.
+The API verifies Firebase ID tokens, maintains Homista user profiles and revocable access sessions, and versions the schema with Alembic. Signed-in users can create home projects and list only their own projects. Phone OTP sign-in uses Firebase on the client and exchanges the Firebase ID token for a Homista API session.
 
 ## Boundaries
 
-- `mobile/` owns presentation and mobile navigation.
-- `backend/` owns HTTP endpoints, Firebase token verification, access-session validation, and persistence.
+- `mobile/` owns presentation, phone sign-in, session storage, and project screens.
+- `backend/` owns HTTP endpoints, Firebase token verification, access-session validation, project ownership, and persistence.
 - `qa/api/` checks backend contracts; `qa/e2e/` checks the browser rendering of the mobile app.
 - `.github/workflows/ci.yml` runs API checks, migration validation, mobile TypeScript checks, and the browser smoke check on pushes and pull requests to `main`.

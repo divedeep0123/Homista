@@ -5,13 +5,13 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import decode_access_token, issue_access_token, verify_firebase_id_token
 from app.database import get_db
-from app.models import User, UserSession
+from app.models import Project, User, UserSession
 
 router = APIRouter(prefix="/v1")
 bearer = HTTPBearer(auto_error=False)
@@ -32,6 +32,34 @@ class SessionResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserResponse
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    location: Optional[str] = Field(default=None, max_length=160)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Project name cannot be empty")
+        return value
+
+    @field_validator("location")
+    @classmethod
+    def normalize_location(cls, value: Optional[str]) -> Optional[str]:
+        value = value.strip() if value else None
+        return value or None
+
+
+class ProjectResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    location: Optional[str]
+    created_at: datetime
 
 
 def current_user(
@@ -89,6 +117,30 @@ def login_with_firebase(payload: FirebaseLoginRequest, db: Session = Depends(get
 @router.get("/users/me", response_model=UserResponse)
 def read_current_user(user: User = Depends(current_user)) -> UserResponse:
     return UserResponse(id=user.id, phone_number=user.phone_number, display_name=user.display_name)
+
+
+@router.get("/projects", response_model=list[ProjectResponse])
+def list_projects(user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[Project]:
+    return list(
+        db.scalars(
+            select(Project)
+            .where(Project.owner_id == user.id)
+            .order_by(Project.created_at.desc(), Project.id.desc())
+        )
+    )
+
+
+@router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+def create_project(
+    payload: ProjectCreate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Project:
+    project = Project(owner_id=user.id, name=payload.name, location=payload.location)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
