@@ -27,7 +27,7 @@ import { clearSessionToken, readSessionToken, writeSessionToken } from './sessio
 
 type HomeType = NonNullable<HomeProject['home_type']>;
 type ConstructionQuality = NonNullable<HomeProject['construction_quality']>;
-type Screen = 'welcome' | 'phone' | 'code' | 'projects' | 'project-detail' | 'new-project' | 'edit-project';
+type Screen = 'welcome' | 'phone' | 'code' | 'projects' | 'project-detail' | 'new-project' | 'edit-project' | 'estimate';
 
 const homeTypes: { value: HomeType; label: string }[] = [
   { value: 'villa', label: 'Villa' },
@@ -69,6 +69,9 @@ export default function App() {
   const [builtUpArea, setBuiltUpArea] = useState('');
   const [floors, setFloors] = useState('');
   const [constructionQuality, setConstructionQuality] = useState<ConstructionQuality | null>(null);
+  const [estimateRate, setEstimateRate] = useState('');
+  const [estimateReserve, setEstimateReserve] = useState('10');
+  const [estimate, setEstimate] = useState<{ base: number; reserve: number; total: number } | null>(null);
   const [projects, setProjects] = useState<HomeProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<HomeProject | null>(null);
   const [user, setUser] = useState<HomistaUser | null>(null);
@@ -290,6 +293,33 @@ export default function App() {
     setScreen('edit-project');
   };
 
+  const startEstimate = () => {
+    if (!selectedProject?.built_up_area_sqft) {
+      setError('Add the built-up area to your home details before creating an estimate.');
+      return;
+    }
+    setEstimate(null);
+    setError('');
+    setScreen('estimate');
+  };
+
+  const calculateEstimate = () => {
+    setError('');
+    const rate = Number(estimateRate);
+    const reservePercent = Number(estimateReserve || '0');
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 100_000) {
+      setError('Enter a rate greater than ₹0 and no more than ₹1,00,000 per sq ft.');
+      return;
+    }
+    if (!Number.isFinite(reservePercent) || reservePercent < 0 || reservePercent > 100) {
+      setError('The reserve must be between 0% and 100%.');
+      return;
+    }
+    const base = (selectedProject?.built_up_area_sqft || 0) * rate;
+    const reserve = Math.round(base * reservePercent / 100);
+    setEstimate({ base, reserve, total: base + reserve });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -456,9 +486,59 @@ export default function App() {
             </View>
             <View style={styles.nextStepCard}>
               <Text style={styles.label}>NEXT UP</Text>
-              <Text style={styles.cardTitle}>Cost and materials estimate</Text>
-              <Text style={styles.cardBody}>Complete the home profile first. Then Homista can prepare a clear estimate with quantities and assumptions.</Text>
+              <Text style={styles.cardTitle}>Build-cost estimate</Text>
+              <Text style={styles.cardBody}>Use a rate from your contractor or local quote to calculate a transparent project budget. Material quantities will come in a later step.</Text>
+              <ActionButton label="Create a cost estimate" onPress={startEstimate} />
             </View>
+          </>
+        )}
+
+        {screen === 'estimate' && selectedProject && (
+          <>
+            <Pressable accessibilityRole="button" onPress={() => { setError(''); setScreen('project-detail'); }} style={styles.backLink}>
+              <Text style={styles.textButtonLabel}>‹ {selectedProject.name}</Text>
+            </Pressable>
+            <Text style={styles.eyebrow}>PROJECT PLANNING</Text>
+            <Text style={styles.title}>Build-cost{ '\n' }estimate.</Text>
+            <Text style={styles.subtitle}>A simple calculation for {formatArea(selectedProject.built_up_area_sqft)} of built-up area.</Text>
+            <View style={styles.card}>
+              <Text style={styles.label}>YOUR LOCAL RATE (₹ / SQ FT)</Text>
+              <TextInput
+                accessibilityLabel="Construction rate per square foot in rupees"
+                keyboardType="decimal-pad"
+                maxLength={10}
+                onChangeText={(value) => { setEstimateRate(value); setEstimate(null); }}
+                placeholder="e.g. 2200"
+                placeholderTextColor="#9aa39c"
+                style={styles.input}
+                value={estimateRate}
+              />
+              <Text style={styles.inputHint}>Enter a rate from a contractor or a current local quote. Homista does not set this rate.</Text>
+              <Text style={[styles.label, styles.locationLabel]}>OPTIONAL BUDGET RESERVE (%)</Text>
+              <TextInput
+                accessibilityLabel="Optional budget reserve percentage"
+                keyboardType="decimal-pad"
+                maxLength={5}
+                onChangeText={(value) => { setEstimateReserve(value); setEstimate(null); }}
+                placeholder="10"
+                placeholderTextColor="#9aa39c"
+                style={styles.input}
+                value={estimateReserve}
+              />
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              <ActionButton label="Calculate estimate" onPress={calculateEstimate} />
+            </View>
+            {estimate ? (
+              <View style={[styles.profileCard, styles.estimateCard]}>
+                <Text style={styles.label}>PLANNING TOTAL</Text>
+                <Text accessibilityLiveRegion="polite" style={styles.estimateTotal}>{formatRupees(estimate.total)}</Text>
+                <DetailRow label="Built-up area" value={formatArea(selectedProject.built_up_area_sqft)} />
+                <DetailRow label="Rate used" value={`${formatRupees(Number(estimateRate))} / sq ft`} />
+                <DetailRow label="Base build cost" value={formatRupees(estimate.base)} />
+                <DetailRow label={`Reserve (${Number(estimateReserve || '0')}%)`} value={formatRupees(estimate.reserve)} last />
+                <Text style={styles.estimateNote}>This is a planning calculation using your inputs. It is not a contractor quote and does not include a materials quantity survey, approvals, land, or other costs unless covered by your rate.</Text>
+              </View>
+            ) : null}
           </>
         )}
 
@@ -662,6 +742,10 @@ function formatArea(value: number | null): string {
   return value ? `${new Intl.NumberFormat('en-IN').format(value)} sq ft` : 'Not added';
 }
 
+function formatRupees(value: number): string {
+  return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(value))}`;
+}
+
 function Tip() {
   return (
     <View style={styles.tip}>
@@ -706,6 +790,9 @@ const styles = StyleSheet.create({
   detailLabel: { color: colors.muted, fontSize: 13 },
   detailValue: { color: colors.ink, fontSize: 13, fontWeight: '600', textAlign: 'right', marginLeft: 12 },
   nextStepCard: { backgroundColor: colors.paleGreen, borderRadius: 20, padding: 20, marginTop: 18 },
+  estimateCard: { marginTop: 18 },
+  estimateTotal: { color: colors.ink, fontSize: 34, lineHeight: 42, fontWeight: '700', letterSpacing: -1.2, marginBottom: 6 },
+  estimateNote: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 16 },
   fieldRow: { flexDirection: 'row', alignItems: 'flex-start' },
   fieldHalf: { flex: 1, marginRight: 8 },
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap' },
