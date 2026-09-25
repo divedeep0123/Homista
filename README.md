@@ -38,4 +38,4 @@ See [Getting started](docs/getting-started.md) and [Architecture](docs/architect
 
 ## Current scope
 
-The app supports Firebase phone OTP sign-in and a user-owned home-project list with project creation. The API verifies Firebase ID tokens, creates revocable Homista sessions, and scopes project data to the signed-in user. Detailed planning, budgets, documents, and team collaboration remain future milestones. See [Authentication and project API](docs/getting-started.md#authentication-api).
+The app supports Firebase phone OTP sign-in, user-owned projects, editable home profiles, and a simple build-cost calculator using a rate supplied by the homeowner. The API verifies Firebase ID tokens, creates revocable Homista sessions, and scopes project data to the signed-in user. Saved estimate history, validated materials quantities, budgets, schedules, documents, and team collaboration remain future milestones. See the [implementation plan](docs/implementation-plan.md) for the phased roadmap and [authentication and project API](docs/getting-started.md#authentication-api) for the current API.
