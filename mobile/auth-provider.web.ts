@@ -27,6 +27,12 @@ function getWebAuth() {
 
 export async function sendPhoneCode(phoneNumber: string): Promise<void> {
   const auth = getWebAuth();
+  // Firebase's fictional test numbers can be exercised locally without a live
+  // reCAPTCHA challenge. Expo replaces NODE_ENV for production web builds, so
+  // production sign-in continues to use normal app verification.
+  if (process.env.NODE_ENV === 'development') {
+    auth.settings.appVerificationDisabledForTesting = true;
+  }
   const container = document.getElementById('homista-recaptcha');
   if (!container) throw new Error('Phone verification is not ready. Reload the page and try again.');
   verifier?.clear();
