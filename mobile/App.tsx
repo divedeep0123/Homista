@@ -18,12 +18,27 @@ import {
   getProjects,
   HomeProject,
   HomistaUser,
+  ProjectDetails,
   revokeHomistaSession,
+  updateProject,
 } from './api';
 import { confirmPhoneCode, sendPhoneCode, signOutFromFirebase } from './auth-provider';
 import { clearSessionToken, readSessionToken, writeSessionToken } from './session-store';
 
-type Screen = 'welcome' | 'phone' | 'code' | 'projects' | 'new-project';
+type HomeType = NonNullable<HomeProject['home_type']>;
+type ConstructionQuality = NonNullable<HomeProject['construction_quality']>;
+type Screen = 'welcome' | 'phone' | 'code' | 'projects' | 'project-detail' | 'new-project' | 'edit-project';
+
+const homeTypes: { value: HomeType; label: string }[] = [
+  { value: 'villa', label: 'Villa' },
+  { value: 'duplex', label: 'Duplex' },
+  { value: 'apartment', label: 'Apartment' },
+];
+
+const constructionQualities: { value: ConstructionQuality; label: string }[] = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'premium', label: 'Premium' },
+];
 
 const colors = {
   background: '#f7f8f5',
@@ -49,7 +64,13 @@ export default function App() {
   const [code, setCode] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectLocation, setProjectLocation] = useState('');
+  const [homeType, setHomeType] = useState<HomeType | null>(null);
+  const [plotArea, setPlotArea] = useState('');
+  const [builtUpArea, setBuiltUpArea] = useState('');
+  const [floors, setFloors] = useState('');
+  const [constructionQuality, setConstructionQuality] = useState<ConstructionQuality | null>(null);
   const [projects, setProjects] = useState<HomeProject[]>([]);
+  const [selectedProject, setSelectedProject] = useState<HomeProject | null>(null);
   const [user, setUser] = useState<HomistaUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -143,16 +164,61 @@ export default function App() {
       setScreen('welcome');
       return;
     }
+    const editingProject = screen === 'edit-project' ? selectedProject : null;
+    if (screen === 'edit-project' && !editingProject) {
+      setError('Choose a project before editing its details.');
+      setScreen('projects');
+      return;
+    }
+    const optionalInteger = (value: string, label: string, max: number): number | undefined | null => {
+      if (!value.trim()) return undefined;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) {
+        setError(`${label} must be a whole number from 1 to ${max.toLocaleString()}.`);
+        return null;
+      }
+      return parsed;
+    };
+    const plotAreaValue = optionalInteger(plotArea, 'Plot area', 10_000_000);
+    const builtUpAreaValue = optionalInteger(builtUpArea, 'Built-up area', 10_000_000);
+    const floorsValue = optionalInteger(floors, 'Floors', 100);
+    if (plotAreaValue === null || builtUpAreaValue === null || floorsValue === null) return;
+    const details: ProjectDetails = screen === 'edit-project'
+      ? {
+          name: normalizedName,
+          location: projectLocation.trim() || null,
+          home_type: homeType,
+          plot_area_sqft: plotAreaValue ?? null,
+          built_up_area_sqft: builtUpAreaValue ?? null,
+          floors: floorsValue ?? null,
+          construction_quality: constructionQuality,
+        }
+      : {
+          name: normalizedName,
+          ...(projectLocation.trim() ? { location: projectLocation.trim() } : {}),
+          ...(homeType ? { home_type: homeType } : {}),
+          ...(plotAreaValue ? { plot_area_sqft: plotAreaValue } : {}),
+          ...(builtUpAreaValue ? { built_up_area_sqft: builtUpAreaValue } : {}),
+          ...(floorsValue ? { floors: floorsValue } : {}),
+          ...(constructionQuality ? { construction_quality: constructionQuality } : {}),
+        };
     setBusy(true);
     try {
-      const project = await createProject(accessToken, {
-        name: normalizedName,
-        ...(projectLocation.trim() ? { location: projectLocation.trim() } : {}),
-      });
-      setProjects((current) => [project, ...current]);
+      const project = editingProject
+        ? await updateProject(accessToken, editingProject.id, details)
+        : await createProject(accessToken, details);
+      setProjects((current) => editingProject
+        ? current.map((item) => item.id === project.id ? project : item)
+        : [project, ...current]);
+      setSelectedProject(project);
       setProjectName('');
       setProjectLocation('');
-      setScreen('projects');
+      setHomeType(null);
+      setPlotArea('');
+      setBuiltUpArea('');
+      setFloors('');
+      setConstructionQuality(null);
+      setScreen('project-detail');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'We could not create that project. Please try again.');
     } finally {
@@ -187,10 +253,41 @@ export default function App() {
       setCode('');
       setProjectName('');
       setProjectLocation('');
+      setHomeType(null);
+      setPlotArea('');
+      setBuiltUpArea('');
+      setFloors('');
+      setConstructionQuality(null);
+      setSelectedProject(null);
       setProjects([]);
       setScreen('welcome');
       setBusy(false);
     }
+  };
+
+  const startNewProject = () => {
+    setError('');
+    setProjectName('');
+    setProjectLocation('');
+    setHomeType(null);
+    setPlotArea('');
+    setBuiltUpArea('');
+    setFloors('');
+    setConstructionQuality(null);
+    setScreen('new-project');
+  };
+
+  const editSelectedProject = () => {
+    if (!selectedProject) return;
+    setError('');
+    setProjectName(selectedProject.name);
+    setProjectLocation(selectedProject.location || '');
+    setHomeType(selectedProject.home_type);
+    setPlotArea(selectedProject.plot_area_sqft?.toString() || '');
+    setBuiltUpArea(selectedProject.built_up_area_sqft?.toString() || '');
+    setFloors(selectedProject.floors?.toString() || '');
+    setConstructionQuality(selectedProject.construction_quality);
+    setScreen('edit-project');
   };
 
   return (
@@ -294,7 +391,7 @@ export default function App() {
                 <View style={styles.icon}><Text style={styles.iconText}>⌂</Text></View>
                 <Text style={styles.cardTitle}>Start with your first project</Text>
                 <Text style={styles.cardBody}>Add a name and location. You can fill in the rest as your home takes shape.</Text>
-                <ActionButton label="Create a project" onPress={() => { setError(''); setScreen('new-project'); }} />
+              <ActionButton label="Create a project" onPress={startNewProject} />
               </View>
             ) : (
               <>
@@ -303,15 +400,26 @@ export default function App() {
                   <Text style={styles.projectCount}>{projects.length}</Text>
                 </View>
                 {projects.map((project) => (
-                  <View key={project.id} style={styles.projectCard}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${project.name}`}
+                    key={project.id}
+                    onPress={() => { setSelectedProject(project); setScreen('project-detail'); }}
+                    style={({ pressed }) => [styles.projectCard, pressed && styles.projectCardPressed]}
+                  >
                     <View style={styles.projectIcon}><Text style={styles.projectIconText}>⌂</Text></View>
                     <View style={styles.projectCopy}>
                       <Text style={styles.projectName}>{project.name}</Text>
-                      <Text style={styles.projectLocation}>{project.location || 'Location not added'}</Text>
+                      <Text style={styles.projectLocation}>
+                        {[project.home_type ? homeTypes.find((item) => item.value === project.home_type)?.label : null, project.location || 'Location not added']
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
                     </View>
-                  </View>
+                    <Text style={styles.projectArrow}>›</Text>
+                  </Pressable>
                 ))}
-                <ActionButton label="Create another project" onPress={() => { setError(''); setScreen('new-project'); }} />
+                <ActionButton label="Create another project" onPress={startNewProject} />
               </>
             )}
             <Pressable accessibilityRole="button" disabled={busy} onPress={signOut} style={styles.textButton}>
@@ -320,41 +428,63 @@ export default function App() {
           </>
         )}
 
-        {screen === 'new-project' && (
+        {screen === 'project-detail' && selectedProject && (
           <>
-            <Text style={styles.eyebrow}>A FRESH START</Text>
-            <Text style={styles.title}>Create your{'\n'}project.</Text>
-            <Text style={styles.subtitle}>Begin with the basics. You can add plans and details later.</Text>
-            <View style={styles.card}>
-              <Text style={styles.label}>PROJECT NAME</Text>
-              <TextInput
-                accessibilityLabel="Project name"
-                autoCapitalize="words"
-                maxLength={120}
-                onChangeText={setProjectName}
-                placeholder="e.g. Family home in Pune"
-                placeholderTextColor="#9aa39c"
-                style={styles.input}
-                value={projectName}
+            <Pressable accessibilityRole="button" onPress={() => setScreen('projects')} style={styles.backLink}>
+              <Text style={styles.textButtonLabel}>‹ All projects</Text>
+            </Pressable>
+            <Text style={styles.eyebrow}>PROJECT COMMAND CENTER</Text>
+            <Text style={styles.title}>{selectedProject.name}</Text>
+            <Text style={styles.subtitle}>{selectedProject.location || 'Add a location to personalize your project.'}</Text>
+            <View style={styles.profileCard}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Home profile</Text>
+                <Text style={styles.projectCount}>{projectProfileProgress(selectedProject)}% complete</Text>
+              </View>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${projectProfileProgress(selectedProject)}%` }]} />
+              </View>
+              <DetailRow label="Home type" value={homeTypeLabel(selectedProject.home_type)} />
+              <DetailRow label="Plot area" value={formatArea(selectedProject.plot_area_sqft)} />
+              <DetailRow label="Built-up area" value={formatArea(selectedProject.built_up_area_sqft)} />
+              <DetailRow label="Floors" value={selectedProject.floors?.toString() || 'Not added'} />
+              <DetailRow label="Construction quality" value={qualityLabel(selectedProject.construction_quality)} last />
+              <ActionButton
+                label={projectProfileProgress(selectedProject) === 100 ? 'Edit home details' : 'Add home details'}
+                onPress={editSelectedProject}
               />
-              <Text style={[styles.label, styles.locationLabel]}>LOCATION (OPTIONAL)</Text>
-              <TextInput
-                accessibilityLabel="Project location"
-                autoCapitalize="words"
-                maxLength={160}
-                onChangeText={setProjectLocation}
-                placeholder="City or area"
-                placeholderTextColor="#9aa39c"
-                style={styles.input}
-                value={projectLocation}
-              />
-              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-              <ActionButton label="Save project" loading={busy} onPress={saveProject} />
-              <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setError(''); setScreen('projects'); }} style={styles.textButton}>
-                <Text style={styles.textButtonLabel}>Cancel</Text>
-              </Pressable>
+            </View>
+            <View style={styles.nextStepCard}>
+              <Text style={styles.label}>NEXT UP</Text>
+              <Text style={styles.cardTitle}>Cost and materials estimate</Text>
+              <Text style={styles.cardBody}>Complete the home profile first. Then Homista can prepare a clear estimate with quantities and assumptions.</Text>
             </View>
           </>
+        )}
+
+        {(screen === 'new-project' || screen === 'edit-project') && (
+          <ProjectEditor
+            title={screen === 'edit-project' ? 'Update home details' : 'Create your project'}
+            name={projectName}
+            setName={setProjectName}
+            location={projectLocation}
+            setLocation={setProjectLocation}
+            homeType={homeType}
+            setHomeType={setHomeType}
+            plotArea={plotArea}
+            setPlotArea={setPlotArea}
+            builtUpArea={builtUpArea}
+            setBuiltUpArea={setBuiltUpArea}
+            floors={floors}
+            setFloors={setFloors}
+            constructionQuality={constructionQuality}
+            setConstructionQuality={setConstructionQuality}
+            error={error}
+            busy={busy}
+            saveLabel={screen === 'edit-project' ? 'Save home details' : 'Create project'}
+            onSave={saveProject}
+            onCancel={() => { setError(''); setScreen(screen === 'edit-project' ? 'project-detail' : 'projects'); }}
+          />
         )}
 
         <Text style={styles.footer}>A clearer way to build a home.</Text>
@@ -370,6 +500,166 @@ function ActionButton({ label, loading = false, onPress }: { label: string; load
       {!loading && <Text style={styles.arrow}>→</Text>}
     </Pressable>
   );
+}
+
+type ProjectEditorProps = {
+  title: string;
+  name: string;
+  setName: (value: string) => void;
+  location: string;
+  setLocation: (value: string) => void;
+  homeType: HomeType | null;
+  setHomeType: (value: HomeType | null) => void;
+  plotArea: string;
+  setPlotArea: (value: string) => void;
+  builtUpArea: string;
+  setBuiltUpArea: (value: string) => void;
+  floors: string;
+  setFloors: (value: string) => void;
+  constructionQuality: ConstructionQuality | null;
+  setConstructionQuality: (value: ConstructionQuality | null) => void;
+  error: string;
+  busy: boolean;
+  saveLabel: string;
+  onSave: () => void;
+  onCancel: () => void;
+};
+
+function ProjectEditor(props: ProjectEditorProps) {
+  return (
+    <>
+      <Text style={styles.eyebrow}>HOME PROJECT</Text>
+      <Text style={styles.title}>{props.title}</Text>
+      <Text style={styles.subtitle}>Add what you know now. You can update these details later.</Text>
+      <View style={styles.card}>
+        <Text style={styles.label}>PROJECT NAME</Text>
+        <TextInput
+          accessibilityLabel="Project name"
+          autoCapitalize="words"
+          maxLength={120}
+          onChangeText={props.setName}
+          placeholder="e.g. Family home"
+          placeholderTextColor="#9aa39c"
+          style={styles.input}
+          value={props.name}
+        />
+        <Text style={[styles.label, styles.locationLabel]}>LOCATION (OPTIONAL)</Text>
+        <TextInput
+          accessibilityLabel="Project location"
+          autoCapitalize="words"
+          maxLength={160}
+          onChangeText={props.setLocation}
+          placeholder="City or area"
+          placeholderTextColor="#9aa39c"
+          style={styles.input}
+          value={props.location}
+        />
+
+        <Text style={[styles.label, styles.locationLabel]}>HOME TYPE</Text>
+        <View style={styles.choiceRow}>
+          {homeTypes.map((option) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: props.homeType === option.value }}
+              key={option.value}
+              onPress={() => props.setHomeType(props.homeType === option.value ? null : option.value)}
+              style={[styles.choice, props.homeType === option.value && styles.choiceSelected]}
+            >
+              <Text style={[styles.choiceText, props.homeType === option.value && styles.choiceTextSelected]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.fieldRow}>
+          <View style={styles.fieldHalf}>
+            <Text style={[styles.label, styles.locationLabel]}>PLOT AREA (SQ FT)</Text>
+            <TextInput
+              accessibilityLabel="Plot area in square feet"
+              keyboardType="number-pad"
+              maxLength={10}
+              onChangeText={props.setPlotArea}
+              placeholder="e.g. 1200"
+              placeholderTextColor="#9aa39c"
+              style={styles.input}
+              value={props.plotArea}
+            />
+          </View>
+          <View style={styles.fieldHalf}>
+            <Text style={[styles.label, styles.locationLabel]}>BUILT-UP (SQ FT)</Text>
+            <TextInput
+              accessibilityLabel="Built-up area in square feet"
+              keyboardType="number-pad"
+              maxLength={10}
+              onChangeText={props.setBuiltUpArea}
+              placeholder="e.g. 2400"
+              placeholderTextColor="#9aa39c"
+              style={styles.input}
+              value={props.builtUpArea}
+            />
+          </View>
+        </View>
+
+        <Text style={[styles.label, styles.locationLabel]}>NUMBER OF FLOORS</Text>
+        <TextInput
+          accessibilityLabel="Number of floors"
+          keyboardType="number-pad"
+          maxLength={3}
+          onChangeText={props.setFloors}
+          placeholder="e.g. 2"
+          placeholderTextColor="#9aa39c"
+          style={styles.input}
+          value={props.floors}
+        />
+
+        <Text style={[styles.label, styles.locationLabel]}>CONSTRUCTION QUALITY</Text>
+        <View style={styles.choiceRow}>
+          {constructionQualities.map((option) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: props.constructionQuality === option.value }}
+              key={option.value}
+              onPress={() => props.setConstructionQuality(props.constructionQuality === option.value ? null : option.value)}
+              style={[styles.choice, styles.choiceWide, props.constructionQuality === option.value && styles.choiceSelected]}
+            >
+              <Text style={[styles.choiceText, props.constructionQuality === option.value && styles.choiceTextSelected]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
+        <ActionButton label={props.saveLabel} loading={props.busy} onPress={props.onSave} />
+        <Pressable accessibilityRole="button" disabled={props.busy} onPress={props.onCancel} style={styles.textButton}>
+          <Text style={styles.textButtonLabel}>Cancel</Text>
+        </Pressable>
+      </View>
+    </>
+  );
+}
+
+function DetailRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[styles.detailRow, last && styles.detailRowLast]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
+}
+
+function projectProfileProgress(project: HomeProject): number {
+  const fields = [project.location, project.home_type, project.plot_area_sqft, project.built_up_area_sqft, project.floors, project.construction_quality];
+  return Math.round((fields.filter((value) => value !== null && value !== undefined && value !== '').length / fields.length) * 100);
+}
+
+function homeTypeLabel(value: HomeProject['home_type']): string {
+  return homeTypes.find((option) => option.value === value)?.label || 'Not added';
+}
+
+function qualityLabel(value: HomeProject['construction_quality']): string {
+  return constructionQualities.find((option) => option.value === value)?.label || 'Not added';
+}
+
+function formatArea(value: number | null): string {
+  return value ? `${new Intl.NumberFormat('en-IN').format(value)} sq ft` : 'Not added';
 }
 
 function Tip() {
@@ -400,11 +690,30 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '700' },
   projectCount: { color: colors.green, fontSize: 13, fontWeight: '700', backgroundColor: colors.paleGreen, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   projectCard: { backgroundColor: colors.white, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#edf0ec' },
+  projectCardPressed: { opacity: 0.78 },
   projectIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.paleGreen, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   projectIconText: { color: colors.green, fontSize: 27, lineHeight: 30 },
   projectCopy: { flex: 1 },
   projectName: { color: colors.ink, fontSize: 15, fontWeight: '700' },
   projectLocation: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  projectArrow: { color: colors.green, fontSize: 26, marginLeft: 12 },
+  backLink: { alignSelf: 'flex-start', paddingBottom: 18 },
+  profileCard: { backgroundColor: colors.white, borderRadius: 24, padding: 22, shadowColor: '#203628', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
+  progressTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: '#edf1ed', marginTop: 2, marginBottom: 12 },
+  progressFill: { height: 7, borderRadius: 4, backgroundColor: colors.green },
+  detailRow: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#edf0ec', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detailRowLast: { borderBottomWidth: 0 },
+  detailLabel: { color: colors.muted, fontSize: 13 },
+  detailValue: { color: colors.ink, fontSize: 13, fontWeight: '600', textAlign: 'right', marginLeft: 12 },
+  nextStepCard: { backgroundColor: colors.paleGreen, borderRadius: 20, padding: 20, marginTop: 18 },
+  fieldRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  fieldHalf: { flex: 1, marginRight: 8 },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  choice: { minHeight: 44, borderWidth: 1, borderColor: '#dfe5df', borderRadius: 13, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', marginRight: 8, marginBottom: 4 },
+  choiceWide: { flexGrow: 1 },
+  choiceSelected: { backgroundColor: colors.paleGreen, borderColor: colors.green },
+  choiceText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  choiceTextSelected: { color: colors.green },
   locationLabel: { marginTop: 20 },
   label: { color: colors.green, fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginBottom: 9 },
   input: { height: 54, borderWidth: 1, borderColor: '#dfe5df', borderRadius: 14, paddingHorizontal: 15, color: colors.ink, fontSize: 16, backgroundColor: '#fff' },

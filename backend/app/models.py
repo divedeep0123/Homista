@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -31,6 +31,11 @@ class Project(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     location: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    home_type: Mapped[Optional[str]] = mapped_column(String(24), nullable=True)
+    plot_area_sqft: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    built_up_area_sqft: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    floors: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    construction_quality: Mapped[Optional[str]] = mapped_column(String(24), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     owner: Mapped[User] = relationship(back_populates="projects")
 

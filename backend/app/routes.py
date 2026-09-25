@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,6 +37,11 @@ class SessionResponse(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     location: Optional[str] = Field(default=None, max_length=160)
+    home_type: Optional[Literal["villa", "duplex", "apartment"]] = None
+    plot_area_sqft: Optional[int] = Field(default=None, gt=0, le=10_000_000)
+    built_up_area_sqft: Optional[int] = Field(default=None, gt=0, le=10_000_000)
+    floors: Optional[int] = Field(default=None, ge=1, le=100)
+    construction_quality: Optional[Literal["standard", "premium"]] = None
 
     @field_validator("name")
     @classmethod
@@ -59,7 +64,38 @@ class ProjectResponse(BaseModel):
     id: int
     name: str
     location: Optional[str]
+    home_type: Optional[str]
+    plot_area_sqft: Optional[int]
+    built_up_area_sqft: Optional[int]
+    floors: Optional[int]
+    construction_quality: Optional[str]
     created_at: datetime
+
+
+class ProjectDetailsUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    location: Optional[str] = Field(default=None, max_length=160)
+    home_type: Optional[Literal["villa", "duplex", "apartment"]] = None
+    plot_area_sqft: Optional[int] = Field(default=None, gt=0, le=10_000_000)
+    built_up_area_sqft: Optional[int] = Field(default=None, gt=0, le=10_000_000)
+    floors: Optional[int] = Field(default=None, ge=1, le=100)
+    construction_quality: Optional[Literal["standard", "premium"]] = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_optional_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            raise ValueError("Project name cannot be null")
+        value = value.strip()
+        if not value:
+            raise ValueError("Project name cannot be empty")
+        return value
+
+    @field_validator("location")
+    @classmethod
+    def normalize_optional_location(cls, value: Optional[str]) -> Optional[str]:
+        value = value.strip() if value else None
+        return value or None
 
 
 def current_user(
@@ -128,6 +164,25 @@ def list_projects(user: User = Depends(current_user), db: Session = Depends(get_
             .order_by(Project.created_at.desc(), Project.id.desc())
         )
     )
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectResponse)
+def update_project(
+    project_id: int,
+    payload: ProjectDetailsUpdate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Project:
+    project = db.get(Project, project_id)
+    if project is None or project.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if not payload.model_fields_set:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No project details were provided")
+    for field_name in payload.model_fields_set:
+        setattr(project, field_name, getattr(payload, field_name))
+    db.commit()
+    db.refresh(project)
+    return project
 
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

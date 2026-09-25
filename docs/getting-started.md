@@ -43,6 +43,7 @@ cd ../qa && npm ci && npx playwright install chromium && npm run test:e2e
 - `GET /v1/users/me` returns the authenticated user's profile.
 - `POST /v1/auth/logout` revokes the session in the database; subsequent use of that access token returns `401`.
 - `GET /v1/projects` lists projects owned by the current user.
-- `POST /v1/projects` creates a project with a required name and optional location.
+- `POST /v1/projects` creates a project with a required name and optional home profile details.
+- `PATCH /v1/projects/{project_id}` updates a project the signed-in user owns.
 
 Send Homista tokens in `Authorization: Bearer <access_token>`. Use HTTPS for API traffic outside local development. The mobile app completes Firebase phone OTP, creates a Homista session, then uses that session for project API requests.

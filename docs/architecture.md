@@ -11,7 +11,9 @@ FastAPI service ─── PostgreSQL
        └── Firebase Admin verifies phone-auth identity
 ```
 
-The API verifies Firebase ID tokens, maintains Homista user profiles and revocable access sessions, and versions the schema with Alembic. Signed-in users can create home projects and list only their own projects. Phone OTP sign-in uses Firebase on the client and exchanges the Firebase ID token for a Homista API session.
+The API verifies Firebase ID tokens, maintains Homista user profiles and revocable access sessions, and versions the schema with Alembic. Signed-in users can create and list only their own home projects, and update each project's home profile. Phone OTP sign-in uses Firebase on the client and exchanges the Firebase ID token for a Homista API session.
+
+The current project profile stores the home type, location, plot area, built-up area, floor count, and construction quality. Estimates, budgets, and construction milestones are future product work; the app does not show fabricated cost figures.
 
 ## Boundaries
 

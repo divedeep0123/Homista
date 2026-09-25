@@ -8,7 +8,22 @@ export type HomeProject = {
   id: number;
   name: string;
   location: string | null;
+  home_type: 'villa' | 'duplex' | 'apartment' | null;
+  plot_area_sqft: number | null;
+  built_up_area_sqft: number | null;
+  floors: number | null;
+  construction_quality: 'standard' | 'premium' | null;
   created_at: string;
+};
+
+export type ProjectDetails = {
+  name: string;
+  location?: string | null;
+  home_type?: 'villa' | 'duplex' | 'apartment' | null;
+  plot_area_sqft?: number | null;
+  built_up_area_sqft?: number | null;
+  floors?: number | null;
+  construction_quality?: 'standard' | 'premium' | null;
 };
 
 type LoginResponse = {
@@ -57,10 +72,17 @@ export function getProjects(token: string): Promise<HomeProject[]> {
 
 export function createProject(
   token: string,
-  project: { name: string; location?: string },
+  project: ProjectDetails,
 ): Promise<HomeProject> {
   return request('/v1/projects', token, {
     method: 'POST',
+    body: JSON.stringify(project),
+  });
+}
+
+export function updateProject(token: string, projectId: number, project: ProjectDetails): Promise<HomeProject> {
+  return request(`/v1/projects/${projectId}`, token, {
+    method: 'PATCH',
     body: JSON.stringify(project),
   });
 }
