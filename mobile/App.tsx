@@ -430,13 +430,7 @@ export default function App() {
                   <Text style={styles.projectCount}>{projects.length}</Text>
                 </View>
                 {projects.map((project) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${project.name}`}
-                    key={project.id}
-                    onPress={() => { setSelectedProject(project); setScreen('project-detail'); }}
-                    style={({ pressed }) => [styles.projectCard, pressed && styles.projectCardPressed]}
-                  >
+                  <View key={project.id} style={styles.projectCard}>
                     <View style={styles.projectIcon}><Text style={styles.projectIconText}>⌂</Text></View>
                     <View style={styles.projectCopy}>
                       <Text style={styles.projectName}>{project.name}</Text>
@@ -446,8 +440,17 @@ export default function App() {
                           .join(' · ')}
                       </Text>
                     </View>
-                    <Text style={styles.projectArrow}>›</Text>
-                  </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${project.name}`}
+                      hitSlop={8}
+                      onPress={() => { setSelectedProject(project); setScreen('project-detail'); }}
+                      style={({ pressed }) => [styles.projectOpenButton, pressed && styles.projectOpenButtonPressed]}
+                    >
+                      <Text style={styles.projectOpenText}>Open</Text>
+                      <Text style={styles.projectArrow}>→</Text>
+                    </Pressable>
+                  </View>
                 ))}
                 <ActionButton label="Create another project" onPress={startNewProject} />
               </>
@@ -774,13 +777,15 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: '700' },
   projectCount: { color: colors.green, fontSize: 13, fontWeight: '700', backgroundColor: colors.paleGreen, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   projectCard: { backgroundColor: colors.white, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#edf0ec' },
-  projectCardPressed: { opacity: 0.78 },
   projectIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.paleGreen, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   projectIconText: { color: colors.green, fontSize: 27, lineHeight: 30 },
   projectCopy: { flex: 1 },
   projectName: { color: colors.ink, fontSize: 15, fontWeight: '700' },
   projectLocation: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  projectArrow: { color: colors.green, fontSize: 26, marginLeft: 12 },
+  projectOpenButton: { minHeight: 42, borderWidth: 1, borderColor: '#cbd9cd', borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
+  projectOpenButtonPressed: { backgroundColor: colors.paleGreen },
+  projectOpenText: { color: colors.green, fontSize: 13, fontWeight: '700' },
+  projectArrow: { color: colors.green, fontSize: 17, marginLeft: 7 },
   backLink: { alignSelf: 'flex-start', paddingBottom: 18 },
   profileCard: { backgroundColor: colors.white, borderRadius: 24, padding: 22, shadowColor: '#203628', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
   progressTrack: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: '#edf1ed', marginTop: 2, marginBottom: 12 },
